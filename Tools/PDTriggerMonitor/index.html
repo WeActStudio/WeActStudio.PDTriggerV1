@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WeAct Studio PD Trigger 监控控制台</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0d1117">
+<style>
+  :root{
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    --hdr:rgba(13,17,23,.92);
+    --scrl:#2c3a48;
+    --btn-primary-bg:#1d4ed8; --btn-primary-bd:#2563eb;
+  }
+  html[data-theme="dark"]{
+    color-scheme:dark;   
+    --bg:#0d1117; --panel:#151b23; --panel2:#1b232d; --panel3:#232e3a; --line:#26313d;
+    --fg:#e6edf3; --fg2:#9aa8b6; --fg3:#6b7a89;
+    --cy:#22d3ee; --am:#f5a524; --gr:#3ddc84; --rd:#ff5c5c; --bl:#5b9dff; --pu:#b98bff;
+    --chartbg:#0a0e13; --grid:#1b232d; --grid2:#161d26; --selbg:#12332a; --logbg:#0a0e13;
+    --hdr:rgba(13,17,23,.92); --scrl:#2c3a48;
+    --bannerbg:#2a1f12; --bannerbd:#6b4a1a; --bannerfg:#f7d9a8;
+    --warnbd:#4a2020; --warnfg:#ff8a8a;
+    --toastbg:#1e2833;
+  }
+  html[data-theme="light"]{
+    color-scheme:light;
+    --bg:#eef1f6; --panel:#ffffff; --panel2:#f2f5f9; --panel3:#e2e8f0; --line:#d3dbe5;
+    --fg:#0f1620; --fg2:#44536a; --fg3:#78879b;
+    --cy:#0e7490; --am:#a1570a; --gr:#0d8a4e; --rd:#cf2a20; --bl:#1d4ed8; --pu:#6d28d9;
+    --chartbg:#fbfcfe; --grid:#dde5ee; --grid2:#eaeff6; --selbg:#cdf0dd; --logbg:#fbfcfe;
+    --hdr:rgba(255,255,255,.9); --scrl:#bcc7d4;
+    --bannerbg:#fff5e0; --bannerbd:#e0b872; --bannerfg:#7a4d06;
+    --warnbd:#e6b3ad; --warnfg:#a3231a;
+    --toastbg:#ffffff;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--fg);
+    font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  header{
+    position:sticky; top:0; z-index:20;
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    padding:9px 16px; background:var(--hdr); backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--line);
+  }
+  header h1{font-size:15px; margin:0; font-weight:650; letter-spacing:.2px; white-space:nowrap}
+  header h1 span{color:var(--fg3); font-weight:400}
+  header .logo{width:24px; height:24px; border-radius:6px; flex:0 0 auto; display:block}
+  .spacer{flex:1}
+  .dot{width:9px;height:9px;border-radius:50%;background:#8a97a5;display:inline-block;flex:0 0 auto}
+  .dot.on{background:var(--gr); box-shadow:0 0 8px rgba(61,220,132,.7)}
+  .dot.err{background:var(--rd)}
+  .status{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--fg2);white-space:nowrap;cursor:help}
+  button{
+    font:inherit; color:var(--fg); background:var(--panel2);
+    border:1px solid var(--line); border-radius:7px; padding:7px 13px;
+    cursor:pointer; transition:.12s background,.12s border-color;
+  }
+  
+  button:hover:not(:disabled):not(.primary):not(.on):not(.off){background:var(--panel3);border-color:var(--fg3)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  button.primary{background:var(--btn-primary-bg);border-color:var(--btn-primary-bd);color:#fff}
+  button.primary:hover:not(:disabled){background:#2563eb;border-color:#2563eb;color:#fff}
+  button.on{background:#14532d;border-color:#22c55e;color:#d1fae5}
+  button.on:hover:not(:disabled){background:#1a6b3c;border-color:#22c55e;color:#eafff3}
+  button.off{background:#3f1d1d;border-color:#b91c1c;color:#fee2e2}
+  button.off:hover:not(:disabled){background:#57242a;border-color:#dc2626;color:#fff1f1}
+  button.ghost{background:transparent}
+  
+  [hidden]{display:none !important}
+  select,input[type=number],input[type=text]{
+    font:inherit; color:var(--fg); background:var(--panel2);
+    border:1px solid var(--line); border-radius:7px; padding:6px 9px;
+  }
+  select:disabled,input:disabled{opacity:.5}
+  input[type=range]{width:100%; accent-color:var(--cy)}
+  
+  main{padding:14px 16px 40px; display:grid; gap:12px; grid-template-columns:repeat(12,1fr); align-items:stretch}
+
+  
+  #fallback{display:none}
+  html.noserial #app{display:none}
+  html.noserial #fallback{display:flex; align-items:center; justify-content:center; min-height:100vh; padding:24px}
+  .fb-box{max-width:600px; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px 30px}
+  .fb-logo{display:block; margin-bottom:16px}
+  .fb-box h1{font-size:19px; margin:0 0 10px; font-weight:650}
+  .fb-box > p{margin:0 0 18px; color:var(--fg2); line-height:1.65}
+  .fb-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:18px}
+  .fb-col{background:var(--panel2); border:1px solid var(--line); border-radius:9px; padding:11px 13px}
+  .fb-col.ok{border-color:var(--gr)}
+  .fb-col.no{border-color:var(--rd)}
+  .fb-h{font-size:12px; font-weight:600; letter-spacing:.4px; margin-bottom:7px}
+  .fb-col.ok .fb-h{color:var(--gr)}
+  .fb-col.no .fb-h{color:var(--rd)}
+  .fb-col ul{margin:0; padding-left:17px; color:var(--fg2); font-size:13px; line-height:1.7}
+  .fb-note{font-size:12.5px; color:var(--fg3); margin:0; border-top:1px solid var(--line); padding-top:15px}
+  @media(max-width:560px){ .fb-grid{grid-template-columns:1fr} }
+
+  .card{
+    background:var(--panel); border:1px solid var(--line); border-radius:11px;
+    padding:13px 15px; min-width:0;
+    
+    display:flex; flex-direction:column;
+  }
+  .card > *{flex:0 0 auto}                 
+  .card > .hint:last-child{margin-top:auto} 
+  .mt-a{margin-top:auto !important}         
+  
+  .c-chart > canvas{flex:1 1 250px; min-height:250px; max-height:440px}
+  .c-pdo > .scroll{flex:1 1 auto; max-height:340px; min-height:140px}
+  .c-log > .logbox{flex:1 1 auto; min-height:190px}
+  .card h2{
+    margin:0 0 11px; font-size:12px; font-weight:650; letter-spacing:.8px;
+    text-transform:uppercase; color:var(--fg3);
+    display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  }
+  .card h2 .tag{margin-left:auto; text-transform:none; letter-spacing:0; font-weight:400; font-size:11px; color:var(--fg3)}
+  .c-live{grid-column:span 5}
+  .c-energy{grid-column:span 4}
+  .c-ctl{grid-column:span 3}
+  .c-chart{grid-column:span 8}
+  .c-pdo{grid-column:span 4}
+  .c-dev{grid-column:span 5}
+  .c-set{grid-column:span 4}
+  .c-cal{grid-column:span 3}
+  .c-log{grid-column:span 12}
+  @media(max-width:1320px){
+    .c-dev,.c-set,.c-cal{grid-column:span 6}
+    .c-chart,.c-pdo{grid-column:span 12}
+  }
+  @media(max-width:1180px){
+    .c-live,.c-energy,.c-ctl,.c-dev,.c-set,.c-cal,.c-chart,.c-pdo{grid-column:span 12}
+  }
+  .bigv{display:flex; gap:10px; flex-wrap:wrap}
+  .metric{
+    flex:1 1 120px; background:var(--panel2); border:1px solid var(--line);
+    border-radius:9px; padding:10px 12px; min-width:0;
+  }
+  .metric .k{font-size:11px; color:var(--fg3); letter-spacing:.5px; text-transform:uppercase}
+  .metric .n{font:600 30px/1.15 var(--mono); letter-spacing:-.5px; margin-top:4px; font-variant-numeric:tabular-nums}
+  .metric .u{font-size:13px; color:var(--fg2); font-weight:400; margin-left:3px}
+  .metric.v .n{color:var(--cy)} .metric.i .n{color:var(--am)} .metric.p .n{color:var(--gr)}
+  .row{display:flex; align-items:center; gap:9px; margin:7px 0}
+  .row .lb{color:var(--fg2); font-size:12.5px; flex:0 0 92px}
+  .row .val{font-family:var(--mono); font-variant-numeric:tabular-nums}
+  
+  .row .num{
+    flex:0 0 84px; width:84px; margin-left:auto; padding:4px 8px;
+    text-align:right; font-family:var(--mono); font-variant-numeric:tabular-nums;
+    font-size:13px; font-weight:600;
+  }
+  .row .num.v{color:var(--cy)} .row .num.i{color:var(--am)}
+  .row .un{font-family:var(--mono); font-size:12px; color:var(--fg3); flex:0 0 auto}
+  .kv{display:grid; grid-template-columns:auto 1fr; gap:5px 12px; font-size:13px}
+  .kv .k{color:var(--fg3); white-space:nowrap}
+  .kv .v{font-family:var(--mono); word-break:break-all; text-align:right}
+  table{width:100%; border-collapse:collapse; font-size:12.5px}
+  th,td{padding:5px 7px; text-align:right; border-bottom:1px solid var(--line); white-space:nowrap}
+  th{color:var(--fg3); font-weight:500; font-size:11px; text-transform:uppercase; letter-spacing:.4px}
+  th:first-child,td:first-child{text-align:left}
+  tbody tr{cursor:pointer}
+  tbody tr:hover{background:var(--panel3)}
+  tbody tr.sel{background:var(--selbg)}
+  tbody tr.sel td:first-child{box-shadow:inset 3px 0 0 var(--gr)}
+  tbody tr.pend{background:rgba(245,165,36,.14); outline:1px dashed var(--am); outline-offset:-2px}
+  tbody tr.pend td:first-child{box-shadow:inset 3px 0 0 var(--am)}
+  
+  tbody tr.edit{outline:1px dashed var(--cy); outline-offset:-2px}
+  tbody tr.edit td:first-child{box-shadow:inset 3px 0 0 var(--cy)}
+  .scroll{max-height:272px; overflow:auto}
+  .scroll::-webkit-scrollbar{width:9px;height:9px}
+  .scroll::-webkit-scrollbar-thumb{background:var(--scrl);border-radius:5px}
+  canvas{width:100%; height:250px; display:block; cursor:crosshair; touch-action:none}
+  .chartbar{display:flex; align-items:center; gap:6px; margin:-2px 0 8px; flex-wrap:wrap}
+  .chartbar .mono{font-family:var(--mono); font-size:11.5px; color:var(--fg3)}
+  
+  .chartbar .chk.follow{margin-left:4px; color:var(--fg3); font-size:12px}
+  .chartbar .chk.follow .q{cursor:help}
+  
+  .chartbar .vsep{width:1px; align-self:stretch; background:var(--line); margin-left:auto; margin-right:2px}
+  
+  input[type=range].cscroll{
+    display:block; width:calc(100% - 70px); min-width:80px; height:16px; margin:4px 0 0 8px;
+    -webkit-appearance:none; appearance:none; background:transparent; cursor:pointer;
+  }
+  .cscroll:disabled{cursor:default; opacity:.45}
+  .cscroll::-webkit-slider-runnable-track{
+    height:5px; border-radius:3px; background:var(--panel3); border:1px solid var(--bd)
+  }
+  
+  .cscroll::-webkit-slider-thumb{
+    -webkit-appearance:none; appearance:none; width:var(--thumbW,26px); height:14px; margin-top:-5px;
+    border-radius:3px; background:var(--cy); border:1px solid var(--cy); opacity:.75
+  }
+  .cscroll:hover:not(:disabled)::-webkit-slider-thumb{opacity:1}
+  .cscroll::-moz-range-track{height:5px; border-radius:3px; background:var(--panel3); border:1px solid var(--bd)}
+  .cscroll::-moz-range-thumb{width:var(--thumbW,26px); height:14px; border-radius:3px; background:var(--cy); border:1px solid var(--cy); opacity:.75}
+  .logbox{
+    font-family:var(--mono); font-size:11.5px; line-height:1.55;
+    background:var(--logbg); border:1px solid var(--line); border-radius:8px;
+    padding:8px 10px; height:190px; overflow:auto; white-space:pre-wrap; word-break:break-all;
+  }
+  .logbox .tx{color:var(--bl)} .logbox .rx{color:var(--gr)} .logbox .er{color:var(--rd)} .logbox .no{color:var(--fg3)}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:20px;font-size:11px;
+        border:1px solid var(--line);background:var(--panel2);color:var(--fg2);font-weight:600;letter-spacing:.4px}
+  .pill::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.75}
+  .pill.dc{color:var(--am);border-color:var(--am)}
+  .pill.none{color:var(--fg3)} .pill.none::before{opacity:.4}
+  .pill.qc{color:#fff;border-color:#7c3aed;background:linear-gradient(180deg,#8b5cf6,#6d28d9);
+           box-shadow:0 2px 10px rgba(124,58,237,.35)}
+  .pill.pd{color:#fff;border-color:#3b82f6;background:linear-gradient(180deg,#3b82f6,#1d4ed8);
+           box-shadow:0 0 0 1px rgba(59,130,246,.45),0 3px 12px rgba(37,99,235,.45)}
+  .pill.pd::before{background:#dbeafe;opacity:1;box-shadow:0 0 6px #dbeafe}
+  .pill.big{font-size:13px;padding:4px 13px;letter-spacing:.8px}
+  .hint{color:var(--fg3); font-size:11.5px; margin-top:8px; line-height:1.5}
+  .hint b{color:var(--fg2); font-weight:600}
+  .chk{display:flex; align-items:center; gap:6px; color:var(--fg2); font-size:12.5px; cursor:pointer; user-select:none}
+  .chk input{accent-color:var(--cy); margin:0}
+  .chk .q{cursor:help}
+  .warn{color:var(--am)}
+  .danger-line{color:var(--rd)}
+  .danger{border-color:var(--warnbd)}
+  .danger h2{color:var(--warnfg)}
+  
+  .card.pend{border-color:var(--am); box-shadow:0 0 0 1px rgba(245,165,36,.30),0 8px 24px rgba(245,165,36,.11)}
+  .card.pend h2{color:var(--am)}
+  .toast{
+    position:fixed; left:50%; bottom:26px; z-index:99;
+    transform:translate(-50%,16px) scale(.97);
+    display:flex; align-items:flex-start; gap:11px;
+    min-width:290px; max-width:min(780px,93vw);
+    padding:14px 20px 17px 16px;
+    background:var(--toastbg); color:var(--fg);
+    border:1px solid var(--line); border-left:4px solid var(--bl);
+    border-radius:12px;
+    font-size:14.5px; font-weight:600; line-height:1.45; letter-spacing:.1px;
+    white-space:pre-wrap; word-break:break-word;
+    box-shadow:0 20px 52px rgba(0,0,0,.55), 0 2px 0 rgba(255,255,255,.04) inset;
+    opacity:0; pointer-events:none; overflow:hidden;
+    transition:opacity .16s ease, transform .24s cubic-bezier(.2,.9,.3,1.25);
+  }
+  html[data-theme="light"] .toast{box-shadow:0 18px 44px rgba(15,22,32,.22)}
+  .toast.show{opacity:1; transform:translate(-50%,0) scale(1)}
+  .toast .ico{
+    flex:0 0 auto; width:20px; height:20px; margin-top:1px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font:800 12px/1 var(--mono); color:#fff; background:var(--bl);
+    box-shadow:0 0 0 3px rgba(91,157,255,.20);
+  }
+  .toast .bar{
+    position:absolute; left:0; bottom:0; height:3px; width:100%;
+    background:var(--bl); transform-origin:left; opacity:.85;
+  }
+  .toast.ok{border-left-color:var(--gr)} .toast.ok .ico{background:var(--gr); box-shadow:0 0 0 3px rgba(61,220,132,.20)}
+  .toast.ok .bar{background:var(--gr)}
+  .toast.bad{border-left-color:var(--rd)} .toast.bad .ico{background:var(--rd); box-shadow:0 0 0 3px rgba(255,92,92,.22)}
+  .toast.bad .bar{background:var(--rd)}
+  html[data-theme="light"] .toast.bad{color:#8f1d15}
+  .banner{
+    grid-column:span 12; background:var(--bannerbg); border:1px solid var(--bannerbd); color:var(--bannerfg);
+    border-radius:10px; padding:12px 15px; font-size:13px; line-height:1.6; display:none;
+  }
+  .banner.show{display:block}
+  .banner code{background:rgba(128,128,128,.18);padding:1px 5px;border-radius:4px;font-family:var(--mono)}
+  .sep{height:1px;background:var(--line);margin:11px 0}
+  .btns{display:flex;gap:7px;flex-wrap:wrap}
+  .mini{font-size:12px;padding:5px 10px}
+  
+  .iconbtn{
+    width:34px; height:34px; padding:0; flex:0 0 auto;
+    display:flex; align-items:center; justify-content:center;
+    color:var(--fg2); background:transparent; text-decoration:none;
+    border:1px solid var(--line); border-radius:9px; cursor:pointer;
+    transition:.13s background,.13s color,.13s border-color;
+  }
+  .iconbtn:hover{background:var(--panel2); color:var(--fg); border-color:var(--fg3)}
+  .ctl-note{display:flex;align-items:flex-start;gap:6px;margin:2px 0 0}
+  .lbl{display:flex;align-items:center;gap:5px;color:var(--fg2);font-size:12.5px;white-space:nowrap}
+  .q{
+    display:inline-flex;align-items:center;justify-content:center;width:13px;height:13px;flex:0 0 auto;
+    border-radius:50%;border:1px solid var(--fg3);color:var(--fg3);font-size:9px;font-weight:700;
+    cursor:help;line-height:1;font-family:var(--mono);
+  }
+  
+  th .q{vertical-align:middle;margin-left:4px}
+  header .lbl{color:var(--fg3);font-size:12px}
+  .gridhead{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
+
+</style>
+<link rel="icon" type="image/x-icon" href="favicon.f09e6c66.ico">
+<script>
+/* ★ 能力检测：Web Serial 只有桌面版 Chromium 内核浏览器支持。
+   特意放在 head 里同步执行 —— 这样在样式表生效之前 noserial 类就已挂上，
+   主界面一帧都不会闪出来。除了挂类什么都不做，不拖慢首屏。 */
+if(!('serial' in navigator)) document.documentElement.classList.add('noserial');
+</script>
+</head>
+<body>
+
+<div id="fallback" role="alert">
+  <div class="fb-box">
+    <svg class="fb-logo" viewBox="0 0 24 24" width="44" height="44" aria-hidden="true">
+      <rect width="24" height="24" rx="6" fill="#1d4ed8"/>
+      <path d="M13.4 3.6 6.6 13.2h4.3l-1 7.2 6.8-9.6h-4.3z" fill="#fff"/>
+    </svg>
+    <h1 data-i18n="unSupTitle">当前浏览器不支持 Web Serial</h1>
+    <p data-i18n="unSupLead">本工具通过 Web Serial 直连 USB 串口读取电压与电流，只有桌面版 Chromium 内核浏览器支持。</p>
+    <div class="fb-grid">
+      <div class="fb-col ok">
+        <div class="fb-h" data-i18n="unSupYesLbl">可用</div>
+        <ul><li data-i18n="unSupYesList">Chrome 89+ · Edge 89+ · Opera 75+（桌面版）</li></ul>
+      </div>
+      <div class="fb-col no">
+        <div class="fb-h" data-i18n="unSupNoLbl">不可用</div>
+        <ul><li data-i18n="unSupNoList">Firefox · Safari · 全部手机与平板浏览器</li></ul>
+      </div>
+    </div>
+    <p class="fb-note" data-i18n="unSupHttps">另外，Web Serial 要求安全上下文：页面须经 HTTPS、localhost 或 file:// 打开，普通 http:// 不行。</p>
+  </div>
+</div>
+
+<div id="app">
+<header>
+  <img class="logo" src="logo.91a58846.png" alt="" width="24" height="24" onerror="this.remove()">
+  <h1>WeAct Studio PD Trigger <span data-i18n="subTitle">监控控制台</span></h1>
+  <div class="spacer"></div>
+
+    <a class="iconbtn" id="btnBack" href="/" data-i18n-title="btnBack" title="返回工具集" aria-label="返回工具集">
+    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M19 12H5M11 18l-6-6 6-6"/>
+    </svg>
+  </a>
+
+  <span class="lbl"><span data-i18n="pollLabel">采样周期</span><span class="q" id="qPoll">?</span>
+    <select id="pollSel" style="padding:4px 7px"></select>
+  </span>
+  <span class="lbl"><span data-i18n="infoLabel">信息周期</span><span class="q" id="qInfo">?</span>
+    <select id="infoSel" style="padding:4px 7px"></select>
+  </span>
+  <span class="lbl"><span data-i18n="langLabel">语言</span>
+    <select id="langSel" style="padding:4px 7px" title="Language"></select>
+  </span>
+  <span class="lbl"><span data-i18n="themeLabel">深浅色</span>
+    <select id="themeSel" style="padding:4px 7px"></select>
+  </span>
+    <button id="btnInstall" class="mini ghost" data-i18n="btnInstall" hidden>安装到桌面</button>
+
+  <div class="status" id="statusBox"><span class="dot" id="dot"></span><span id="stTxt">未连接</span></div>
+  <button id="btnConn" class="primary">连接设备</button>
+</header>
+
+<main>
+  <div class="banner" id="banner"></div>
+
+  <section class="card c-live">
+    <h2><span data-i18n="liveTitle">实时数据</span> <span class="tag" id="liveTag"></span></h2>
+    <div class="bigv">
+      <div class="metric v"><div class="k" data-i18n="volt">电压</div><div class="n"><span id="mV">--</span><span class="u">V</span></div></div>
+      <div class="metric i"><div class="k" data-i18n="curr">电流</div><div class="n"><span id="mI">--</span><span class="u">A</span></div></div>
+      <div class="metric p"><div class="k" data-i18n="power">功率</div><div class="n"><span id="mP">--</span><span class="u">W</span></div></div>
+    </div>
+    <div class="sep"></div>
+    <div class="row">
+      <div class="lb" data-i18n="outSwitch">输出开关</div>
+      <button id="btnOut" class="off" disabled data-i18n="outUnknown">未知</button>
+      <button class="mini ghost" id="btnOutRefresh" disabled>↻</button>
+    </div>
+    <div class="row"><div class="lb" data-i18n="uptime">运行时间</div><div class="val" id="uptime">--</div></div>
+    <div class="hint" id="liveHint"></div>
+  </section>
+
+  <section class="card c-energy">
+    <h2><span data-i18n="energyTitle">电量统计</span> <span class="tag">INA226</span></h2>
+    <div class="bigv">
+      <div class="metric"><div class="k" data-i18n="capacity">容量</div><div class="n"><span id="mah">--</span><span class="u">mAh</span></div></div>
+      <div class="metric"><div class="k" data-i18n="energy">能量</div><div class="n"><span id="mwh">--</span><span class="u">mWh</span></div></div>
+    </div>
+    <div class="sep"></div>
+    <div class="kv">
+      <div class="k" data-i18n="maxV">最大电压</div><div class="v"><span id="maxV">--</span> V</div>
+      <div class="k" data-i18n="maxI">最大电流</div><div class="v"><span id="maxI">--</span> A</div>
+      <div class="k" data-i18n="maxP">最大功率</div><div class="v"><span id="maxP">--</span> W</div>
+    </div>
+    <div class="btns mt-a">
+      <button class="mini" data-act="reset-max" disabled data-i18n="btnResetPeak">清零峰值</button>
+    </div>
+  </section>
+
+  <section class="card c-ctl">
+    <h2><span data-i18n="quickTitle">快捷操作</span></h2>
+    <div class="btns" style="flex-direction:column;align-items:stretch">
+      <button data-act="output-on" disabled data-i18n="btnOn">开启输出</button>
+      <button data-act="output-off" disabled data-i18n="btnOff">关闭输出</button>
+      <button data-act="readall" disabled data-i18n="btnReadAll">重新读取全部</button>
+    </div>
+    <div class="sep"></div>
+    <div class="kv">
+      <div class="k" data-i18n="inType">输入类型</div><div class="v" id="inType"><span class="pill none">--</span></div>
+      <div class="k" data-i18n="curPdo">当前档位</div><div class="v" id="curPdo">--</div>
+    </div>
+    <div class="hint" id="ctlHint"></div>
+  </section>
+
+  <section class="card c-chart">
+    <h2><span data-i18n="chartTitle">趋势</span> <span class="tag" id="chartTag"></span></h2>
+    <div class="chartbar">
+      <button class="mini" id="btnZoomOut" disabled>−</button>
+      <button class="mini" id="btnZoomIn" disabled>+</button>
+      <button class="mini" id="btnZoomReset" disabled data-i18n="btnZoomReset">全览</button>
+      <span class="mono" id="zoomInfo"></span>
+      <label class="chk follow"><input type="checkbox" id="chkFollow" checked>
+        <span data-i18n="followLabel">滚动</span><span class="q" id="qFollow">?</span></label>
+      <span class="vsep" aria-hidden="true"></span>
+            <button class="mini" id="btnExport" disabled data-i18n="btnExport">导出 CSV</button>
+      <button class="mini" id="btnClearChart" disabled data-i18n="btnClearChart">清空曲线</button>
+    </div>
+    <canvas id="cv"></canvas>
+    <input type="range" id="chartScroll" class="cscroll" min="0" max="0" step="1" value="0" disabled>
+    <div class="hint" id="chartHint"></div>
+  </section>
+
+  <section class="card c-pdo">
+    <h2><span data-i18n="pdoTitle">PD 源能力</span> <span class="tag" id="pdoTag">--</span></h2>
+    <div class="scroll">
+      <table>
+                <thead><tr><th data-i18n="thIdx">#</th><th data-i18n="thKind">类型</th><th data-i18n="thVolt">电压</th><th><span data-i18n="thCurr">电流 / 功率</span><span class="q" id="qCurr">?</span></th></tr></thead>
+        <tbody id="pdoBody"><tr><td colspan="4" style="text-align:center;color:var(--fg3)">--</td></tr></tbody>
+      </table>
+    </div>
+    <div id="fixConfirm" style="display:none">
+      <div class="sep"></div>
+      <div class="row" style="margin-bottom:4px">
+        <div class="lb" style="flex:0 0 auto" data-i18n="pdoTarget">待切换档位</div>
+        <div class="val" id="fixTarget">--</div>
+      </div>
+      <div class="btns">
+        <button class="mini primary" id="btnFixApply" disabled data-i18n="btnFixApply">确认切换</button>
+        <button class="mini ghost" id="btnFixCancel" disabled data-i18n="btnFixCancel">取消</button>
+      </div>
+      <div class="hint warn" id="fixWarn"></div>
+    </div>
+    <div id="dynCtl" style="display:none">
+      <div class="sep"></div>
+      <div class="row" style="margin-bottom:3px">
+        <div class="lb" data-i18n="dynTarget">调节档位</div>
+        <div class="val" id="dynTargetLbl">--</div>
+      </div>
+      <div class="row" style="margin:0 0 4px">
+        <label class="chk">
+          <input type="checkbox" id="chkDyn">
+          <span data-i18n="dynEnable">动态调压</span>
+          <span class="q" id="qDyn">?</span>
+        </label>
+      </div>
+      <div class="row" style="margin-bottom:2px">
+        <div class="lb" style="flex:0 0 auto" data-i18n="dynVolt">档位电压</div>
+        <input type="number" class="num v" id="dynVNum" step="0.02" inputmode="decimal"
+               value="5" disabled><span class="un">V</span>
+      </div>
+      <input type="range" id="dynV" min="0" max="20000" step="20" value="5000" disabled>
+      <div class="row" style="margin-bottom:2px">
+        <div class="lb" style="flex:0 0 auto" data-i18n="dynCurr">电流上限</div>
+        <input type="number" class="num i" id="dynINum" step="0.05" inputmode="decimal"
+               value="3" disabled><span class="un">A</span>
+      </div>
+      <input type="range" id="dynI" min="0" max="5000" step="50" value="3000" disabled>
+      <div class="btns" style="margin-top:9px">
+        <button class="mini" id="btnDynApply" disabled data-i18n="btnDynApply">应用设定</button>
+      </div>
+      <div class="hint" id="dynHint"></div>
+    </div>
+    <div class="hint" id="pdoHint"></div>
+  </section>
+
+  <section class="card c-dev">
+    <h2><span data-i18n="devTitle">设备信息</span></h2>
+    <div class="kv">
+      <div class="k" data-i18n="devModel">型号</div><div class="v" id="dvWho">--</div>
+      <div class="k" data-i18n="devVer">固件版本</div><div class="v" id="dvVer">--</div>
+      <div class="k" data-i18n="devSn">序列号</div><div class="v" id="dvSn">--</div>
+      <div class="k" data-i18n="devRsh">采样电阻</div><div class="v"><span id="dvRsh">--</span> mΩ</div>
+      <div class="k" data-i18n="devCfg">INA226 配置</div><div class="v" id="dvCfg">--</div>
+      <div class="k" data-i18n="devLcd">LCD 面板</div><div class="v" id="dvLcd">--</div>
+    </div>
+    <div class="hint" id="devHint"></div>
+  </section>
+
+  <section class="card c-set">
+    <h2><span data-i18n="inaTitle">INA226 配置</span> <span class="tag" data-i18n="inaTag">写入后立即重配</span></h2>
+    <div class="row"><div class="lb" data-i18n="avg">平均次数</div>
+      <select id="selAvg" disabled style="flex:1"></select></div>
+    <div class="row"><div class="lb" data-i18n="vbus">母线采样</div>
+      <select id="selVbusct" disabled style="flex:1"></select></div>
+    <div class="row"><div class="lb" data-i18n="vsh">分流采样</div>
+      <select id="selVshct" disabled style="flex:1"></select></div>
+    <div class="row"><div class="lb" id="lsbLbl" data-i18n="lsb">电流 LSB</div>
+      <select id="selLsb" disabled style="flex:1"></select></div>
+    <div class="row"><div class="lb" data-i18n="mode">工作模式</div><div class="val" id="modeTxt">--</div></div>
+    <div class="hint" id="cfgCalc" style="margin:2px 0 0">--</div>
+    <div class="btns" style="margin-top:7px">
+      <button class="mini" id="btnCfgApply" disabled data-i18n="btnCfgApply">写入配置</button>
+      <button class="mini" id="btnCfgRead" disabled data-i18n="btnCfgRead">读取配置</button>
+    </div>
+    <div class="hint" id="inaHint"></div>
+    <div class="sep"></div>
+    <div class="btns mt-a">
+      <button class="mini" id="btnReset" disabled data-i18n="btnSoftReset">软复位</button>
+      <button class="mini" id="btnFactory" disabled data-i18n="btnFactory">恢复出厂</button>
+    </div>
+  </section>
+
+  <section class="card c-cal danger" id="calCard">
+    <h2><span data-i18n="calTitle">电流校准</span> <span class="tag warn" data-i18n="calTag">不可撤销</span></h2>
+    <div class="row"><div class="lb" data-i18n="calD0">标定点0 显示值</div>
+      <input type="number" id="calD0" step="0.1" style="flex:1;min-width:0" disabled><span class="un" data-i18n="uMa">mA</span></div>
+    <div class="row"><div class="lb" data-i18n="calA0">标定点0 实际值</div>
+      <input type="number" id="calA0" step="0.1" style="flex:1;min-width:0" disabled><span class="un" data-i18n="uMa">mA</span></div>
+    <div class="row"><div class="lb" data-i18n="calD1">标定点1 显示值</div>
+      <input type="number" id="calD1" step="0.1" style="flex:1;min-width:0" disabled><span class="un" data-i18n="uMa">mA</span></div>
+    <div class="row"><div class="lb" data-i18n="calA1">标定点1 实际值</div>
+      <input type="number" id="calA1" step="0.1" style="flex:1;min-width:0" disabled><span class="un" data-i18n="uMa">mA</span></div>
+    <div class="row"><div class="lb" data-i18n="calZero">零点偏移</div>
+      <input type="number" id="calZero" step="0.1" min="-1.5" max="1.5" style="flex:1;min-width:0" disabled><span class="un" data-i18n="uMa">mA</span></div>
+    <div class="hint" id="calHint"></div>
+    <div class="btns" style="margin-top:7px">
+      <button class="mini" id="btnCalRead" disabled data-i18n="btnCfgRead">读取配置</button>
+      <button class="mini" id="btnCalApply" disabled data-i18n="btnCalApply">写入校准</button>
+    </div>
+    <div class="hint danger-line mt-a" id="calWarn"></div>
+    <div id="calConfirm" style="display:none">
+      <div class="sep"></div>
+      <div class="row" style="margin-bottom:5px">
+        <div class="lb" style="flex:0 0 auto;font-weight:600" data-i18n="calCfTitle">待写入的校准值</div>
+      </div>
+      <div class="kv" id="calCfGrid"></div>
+      <div class="btns" style="margin-top:9px">
+        <button class="mini primary" id="btnCalGo" disabled data-i18n="btnCalGo">确认写入</button>
+        <button class="mini ghost" id="btnCalCancel" disabled data-i18n="btnCalCancel">取消</button>
+      </div>
+      <div class="hint warn" id="calCfHint"></div>
+    </div>
+  </section>
+
+  <section class="card c-log">
+    <h2><span data-i18n="logTitle">通信日志</span> <span class="tag"><label style="cursor:pointer"><input type="checkbox" id="logChk" checked style="vertical-align:-1px"> <span data-i18n="logShow">显示</span></label> <button class="mini ghost" id="btnClearLog" style="margin-left:8px" data-i18n="btnClearLog">清空</button></span></h2>
+    <div class="logbox" id="log"></div>
+  </section>
+</main>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"><span class="ico" id="toastIco">i</span><span class="msg" id="toastMsg"></span><i class="bar" id="toastBar"></i></div>
+
+<script>
+(function(){
+  var F = { zh:'i18n-zh.cde60e58.js', en:'i18n-en.01aaec15.js', ru:'i18n-ru.9826a90b.js', de:'i18n-de.65c0059f.js' };
+  var l = null;
+  try { l = localStorage.getItem('pdtrig.lang'); } catch(e){}
+  if(!F[l]){
+    var list = (navigator.languages && navigator.languages.length) ? navigator.languages : [navigator.language || ''];
+    for(var i = 0; i < list.length; i++){
+      var b = String(list[i] || '').toLowerCase().split('-')[0];
+      if(F[b]){ l = b; break; }
+    }
+  }
+  if(!F[l]) l = 'zh';
+  document.write('<script src="' + F[l] + '"><\/script>');
+
+  if('serial' in navigator){
+    document.write('<script src="app.d8cd3539.js"><\/script>');
+    return;
+  }
+  /* 兜底卡文案。必须**另起一段脚本**写下去：同一个内联脚本里 document.write 写进去的
+     外链脚本，要等当前脚本返回之后才被解析执行，紧接着读 I18N 会 ReferenceError。
+     拆成 sibling script 后解析顺序才是「先字典、后这段填充」，I18N 真在作用域里。 */
+  document.write('<script>(function(){var l=' + JSON.stringify(l) +
+    ';var els=document.querySelectorAll("#fallback [data-i18n]");' +
+    'for(var j=0;j<els.length;j++){var k=els[j].getAttribute("data-i18n");' +
+    'if(I18N[l]&&I18N[l][k])els[j].textContent=I18N[l][k];}})();<\/script>');
+})();
+</script>
+</body>
+</html>

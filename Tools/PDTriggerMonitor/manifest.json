@@ -1,0 +1,34 @@
+{
+  "name": "WeAct Studio PD Trigger 监控控制台",
+  "short_name": "PD Trigger",
+  "description": "浏览器里直连 USB PD 诱骗器：实时读取电压/电流/功率，浏览与切换 PDO 档位，附带 INA226 采样与趋势绘图。数据全程留在本机。",
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#101722",
+  "theme_color": "#0d1117",
+  "categories": ["utilities", "developer", "productivity"],
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "icon-192.0ac8520b.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.dc340afe.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable-512.7c8032c3.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

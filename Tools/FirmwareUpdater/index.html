@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WeAct Studio 固件升级工具</title>
+<meta name="description" content="浏览器里直连 USB 串口给 WeAct Studio 设备升级 fpk 固件：按序列号认设备、自动比对版本、Ymodem 传输，全程离线可用，数据不出本机。">
+<style>
+  :root{
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    --hdr:rgba(13,17,23,.92);
+    --scrl:#2c3a48;
+    --btn-primary-bg:#1d4ed8; --btn-primary-bd:#2563eb;
+  }
+  html[data-theme="dark"]{
+    color-scheme:dark;   
+    --bg:#0d1117; --panel:#151b23; --panel2:#1b232d; --panel3:#232e3a; --line:#26313d;
+    --fg:#e6edf3; --fg2:#9aa8b6; --fg3:#6b7a89;
+    --cy:#22d3ee; --am:#f5a524; --gr:#3ddc84; --rd:#ff5c5c; --bl:#5b9dff; --pu:#b98bff;
+    --chartbg:#0a0e13; --grid:#1b232d; --grid2:#161d26; --selbg:#12332a; --logbg:#0a0e13;
+    --hdr:rgba(13,17,23,.92); --scrl:#2c3a48;
+    --bannerbg:#2a1f12; --bannerbd:#6b4a1a; --bannerfg:#f7d9a8;
+    --warnbd:#4a2020; --warnfg:#ff8a8a;
+    
+    --okbg:rgba(61,220,132,.11); --okbd:rgba(61,220,132,.36);
+    --toastbg:#1e2833;
+  }
+  html[data-theme="light"]{
+    color-scheme:light;
+    --bg:#eef1f6; --panel:#ffffff; --panel2:#f2f5f9; --panel3:#e2e8f0; --line:#d3dbe5;
+    --fg:#0f1620; --fg2:#44536a; --fg3:#78879b;
+    --cy:#0e7490; --am:#a1570a; --gr:#0d8a4e; --rd:#cf2a20; --bl:#1d4ed8; --pu:#6d28d9;
+    --chartbg:#fbfcfe; --grid:#dde5ee; --grid2:#eaeff6; --selbg:#cdf0dd; --logbg:#fbfcfe;
+    --hdr:rgba(255,255,255,.9); --scrl:#bcc7d4;
+    --bannerbg:#fff5e0; --bannerbd:#e0b872; --bannerfg:#7a4d06;
+    --warnbd:#e6b3ad; --warnfg:#a3231a;
+    --okbg:rgba(13,138,78,.10); --okbd:rgba(13,138,78,.34);
+    --toastbg:#ffffff;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--fg);
+    font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  header{
+    position:sticky; top:0; z-index:20;
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    padding:9px 16px; background:var(--hdr); backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--line);
+  }
+  header h1{font-size:15px; margin:0; font-weight:650; letter-spacing:.2px; white-space:nowrap}
+  header h1 span{color:var(--fg3); font-weight:400}
+  header .logo{width:24px; height:24px; border-radius:6px; flex:0 0 auto; display:block}
+  .spacer{flex:1}
+  .dot{width:9px;height:9px;border-radius:50%;background:#8a97a5;display:inline-block;flex:0 0 auto}
+  .dot.on{background:var(--gr); box-shadow:0 0 8px rgba(61,220,132,.7)}
+  .dot.err{background:var(--rd)}
+  .status{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--fg2);white-space:nowrap;cursor:help}
+  button{
+    font:inherit; color:var(--fg); background:var(--panel2);
+    border:1px solid var(--line); border-radius:7px; padding:7px 13px;
+    cursor:pointer; transition:.12s background,.12s border-color;
+  }
+  
+  button:hover:not(:disabled):not(.primary):not(.on):not(.off){background:var(--panel3);border-color:var(--fg3)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  button.primary{background:var(--btn-primary-bg);border-color:var(--btn-primary-bd);color:#fff}
+  button.primary:hover:not(:disabled){background:#2563eb;border-color:#2563eb;color:#fff}
+  button.on{background:#14532d;border-color:#22c55e;color:#d1fae5}
+  button.on:hover:not(:disabled){background:#1a6b3c;border-color:#22c55e;color:#eafff3}
+  button.off{background:#3f1d1d;border-color:#b91c1c;color:#fee2e2}
+  button.off:hover:not(:disabled){background:#57242a;border-color:#dc2626;color:#fff1f1}
+  button.ghost{background:transparent}
+  
+  [hidden]{display:none !important}
+  select,input[type=number],input[type=text]{
+    font:inherit; color:var(--fg); background:var(--panel2);
+    border:1px solid var(--line); border-radius:7px; padding:6px 9px;
+  }
+  select:disabled,input:disabled{opacity:.5}
+  input[type=range]{width:100%; accent-color:var(--cy)}
+  
+  main{padding:14px 16px 40px; display:grid; gap:12px; grid-template-columns:repeat(12,1fr); align-items:stretch}
+
+  
+  #fallback{display:none}
+  html.noserial #app{display:none}
+  html.noserial #fallback{display:flex; align-items:center; justify-content:center; min-height:100vh; padding:24px}
+  .fb-box{max-width:600px; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:28px 30px}
+  .fb-logo{display:block; margin-bottom:16px}
+  .fb-box h1{font-size:19px; margin:0 0 10px; font-weight:650}
+  .fb-box > p{margin:0 0 18px; color:var(--fg2); line-height:1.65}
+  .fb-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:18px}
+  .fb-col{background:var(--panel2); border:1px solid var(--line); border-radius:9px; padding:11px 13px}
+  .fb-col.ok{border-color:var(--gr)}
+  .fb-col.no{border-color:var(--rd)}
+  .fb-h{font-size:12px; font-weight:600; letter-spacing:.4px; margin-bottom:7px}
+  .fb-col.ok .fb-h{color:var(--gr)}
+  .fb-col.no .fb-h{color:var(--rd)}
+  .fb-col ul{margin:0; padding-left:17px; color:var(--fg2); font-size:13px; line-height:1.7}
+  .fb-note{font-size:12.5px; color:var(--fg3); margin:0; border-top:1px solid var(--line); padding-top:15px}
+  @media(max-width:560px){ .fb-grid{grid-template-columns:1fr} }
+
+
+
+
+main{display:flex; flex-wrap:wrap; align-items:stretch}
+.c-dev,.c-cat,.c-up{flex:1 1 260px; min-width:0}
+
+.c-log{flex:1 1 100%}
+
+
+.ovl{
+  position:fixed; inset:0; z-index:60;
+  display:flex; align-items:center; justify-content:center;
+  padding:22px 16px;
+}
+.ovl-bg{
+  position:absolute; inset:0; background:rgba(0,0,0,.55);
+  backdrop-filter:blur(2px);
+}
+html[data-theme="light"] .ovl-bg{background:rgba(15,22,32,.4)}
+.ovl-panel{
+  position:relative; width:100%; max-width:640px; max-height:calc(100vh - 44px);
+  overflow-y:auto; border-radius:12px;
+  box-shadow:0 24px 64px rgba(0,0,0,.55);
+}
+html[data-theme="light"] .ovl-panel{box-shadow:0 24px 60px rgba(15,22,32,.28)}
+
+body.ovl-open{overflow:hidden}
+
+.card{
+  background:var(--panel); border:1px solid var(--line); border-radius:11px;
+  padding:13px 15px; min-width:0;
+  display:flex; flex-direction:column;
+}
+.card > *{flex:0 0 auto}
+.card h2{
+  margin:0 0 11px; font-size:12px; font-weight:650; letter-spacing:.8px;
+  text-transform:uppercase; color:var(--fg3);
+  display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+}
+.card h2 .tag{margin-left:auto; text-transform:none; letter-spacing:0; font-weight:400; font-size:11px; color:var(--fg3);
+              max-width:60%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.card h2 .tag.ok{color:var(--gr)}
+.card h2 .tag.warn{color:var(--am)}
+.mt-a{margin-top:auto !important}
+
+
+.kv{display:grid; grid-template-columns:auto 1fr; gap:5px 12px; font-size:13px}
+.kv .k{color:var(--fg3); white-space:nowrap}
+.kv .v{font-family:var(--mono); word-break:break-all; text-align:right}
+
+.hint{color:var(--fg3); font-size:11.5px; margin-top:8px; line-height:1.55}
+.hint b{color:var(--fg2); font-weight:600}
+.hint code{background:rgba(128,128,128,.16); padding:1px 5px; border-radius:4px; font-family:var(--mono)}
+.hint.warn{color:var(--am)}
+.warn{color:var(--am)}
+.sep{height:1px; background:var(--line); margin:11px 0}
+
+
+.catlist{
+  margin-top:10px; margin-bottom:10px; padding-top:9px; border-top:1px solid var(--line);
+  max-height:232px; overflow:auto;
+}
+.catlist .cit{margin-bottom:10px}
+.catlist .cit:last-child{margin-bottom:0}
+.catlist .ciname{
+  display:flex; align-items:center; gap:7px; flex-wrap:wrap;
+  font-size:12.5px; color:var(--fg2); margin-bottom:3px;
+}
+
+.catlist .cit.cur{border-left:2px solid var(--bl); margin-left:-10px; padding-left:8px}
+.catlist .cit.cur .ciname{color:var(--bl)}
+.catlist .cu{
+  font-family:var(--mono); font-size:10.5px; color:var(--fg3);
+  background:var(--panel3); padding:1px 5px; border-radius:4px;
+}
+.catlist .fwr{
+  display:flex; align-items:baseline; gap:8px;
+  font-family:var(--mono); font-size:11.5px; color:var(--fg3); padding:2px 0;
+}
+.catlist .fwr .fv{color:var(--fg3)}
+.catlist .fwr.last .fv{color:var(--fg2)}
+.catlist .fwr .fmeta{margin-left:auto; white-space:nowrap; font-size:10.5px}
+.catlist .empty{color:var(--fg3); font-size:11.5px}
+.badge{
+  font-family:var(--mono); font-size:10px; font-weight:700; letter-spacing:.3px;
+  padding:1px 5px; border-radius:4px; white-space:nowrap;
+}
+.badge.latest{background:rgba(61,220,132,.15); color:var(--gr)}
+.badge.cur{background:rgba(91,157,255,.16); color:var(--bl)}
+
+.btns{display:flex; gap:7px; flex-wrap:wrap; align-items:center}
+.mini{font-size:12px; padding:5px 10px}
+.spacer{flex:1}
+.dot{width:9px; height:9px; border-radius:50%; background:#8a97a5; display:inline-block; flex:0 0 auto}
+.dot.on{background:var(--gr); box-shadow:0 0 8px rgba(61,220,132,.7)}
+.dot.err{background:var(--rd)}
+.status{display:flex; align-items:center; gap:8px; font-size:13px; color:var(--fg2); white-space:nowrap; cursor:help}
+.logo{width:24px; height:24px; border-radius:6px; flex:0 0 auto; display:block}
+.lbl{display:flex; align-items:center; gap:5px; color:var(--fg3); font-size:12px; white-space:nowrap}
+.chk{display:flex; align-items:flex-start; gap:7px; color:var(--fg2); font-size:12.5px; cursor:pointer; user-select:none}
+.chk input{accent-color:var(--cy); margin:2px 0 0}
+.chk.ack{margin-top:10px; line-height:1.5}
+.chk.ack span{font-weight:600; color:var(--fg)}
+.iconbtn{
+  width:34px; height:34px; padding:0; flex:0 0 auto;
+  display:flex; align-items:center; justify-content:center;
+  color:var(--fg2); background:transparent; text-decoration:none;
+  border:1px solid var(--line); border-radius:9px; cursor:pointer;
+  transition:.13s background,.13s color,.13s border-color;
+}
+.iconbtn:hover{background:var(--panel2); color:var(--fg); border-color:var(--fg3)}
+
+
+.verdict{
+  font-size:15px; font-weight:650; letter-spacing:.2px;
+  display:flex; align-items:center; gap:8px;
+}
+.verdict::before{content:''; width:4px; align-self:stretch; border-radius:2px; background:var(--bl)}
+.verdict.ok{color:var(--gr)}   .verdict.ok::before{background:var(--gr)}
+.verdict.warn{color:var(--am)} .verdict.warn::before{background:var(--am)}
+
+
+.verdict.concl{
+  font-size:19px; font-weight:700; line-height:1.3; gap:10px;
+  padding:9px 13px; border-radius:10px; border:1px solid transparent;
+}
+.verdict.concl::before{
+  content:''; width:22px; height:22px; flex:0 0 auto; align-self:center;
+  border-radius:50%; display:flex; align-items:center; justify-content:center;
+  font-size:13px; font-weight:800; line-height:1;
+}
+.verdict.concl.ok{color:var(--gr); background:var(--okbg); border-color:var(--okbd)}
+.verdict.concl.ok::before{content:'✓'; background:var(--gr); color:var(--panel)}
+.verdict.concl.warn{color:var(--am); background:var(--bannerbg); border-color:var(--bannerbd)}
+.verdict.concl.warn::before{content:'!'; background:var(--am); color:var(--panel)}
+
+
+.vt-msg{
+  margin-top:8px; padding:8px 11px; border-radius:8px; font-size:12.5px; line-height:1.55;
+  border:1px solid transparent; word-break:break-word;
+}
+.vt-msg.warn{background:var(--bannerbg); border-color:var(--bannerbd); color:var(--bannerfg)}
+.vt-msg.err{background:rgba(255,92,92,.10); border-color:var(--warnbd); color:var(--warnfg)}
+
+
+.prog{height:9px; border-radius:5px; background:var(--panel3); overflow:hidden; margin:2px 0 7px}
+.progfill{height:100%; width:0; border-radius:5px; background:linear-gradient(90deg,var(--bl),var(--cy));
+          transition:width .18s ease}
+.progmeta{display:flex; gap:10px; justify-content:space-between; flex-wrap:wrap; font-size:11.5px; color:var(--fg3)}
+.progmeta .mono{font-family:var(--mono); font-variant-numeric:tabular-nums}
+
+
+.steps{list-style:none; margin:12px 0 0; padding:0 0 0 2px; position:relative}
+.steps::before{content:''; position:absolute; left:9px; top:6px; bottom:6px; width:1px; background:var(--line)}
+.steps li{display:flex; align-items:center; gap:9px; padding:4px 0; font-size:12.5px; color:var(--fg3); position:relative}
+.steps .si{
+  width:18px; height:18px; flex:0 0 auto; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font:700 11px/1 var(--mono);
+  background:var(--panel2); border:1px solid var(--line); color:var(--fg3); z-index:1;
+}
+.steps li.active{color:var(--bl); font-weight:600}
+.steps li.active .si{background:rgba(91,157,255,.16); border-color:var(--bl); color:var(--bl)}
+.steps li.done{color:var(--fg2)}
+.steps li.done .si{background:rgba(61,220,132,.16); border-color:var(--gr); color:var(--gr)}
+.steps li.fail{color:var(--rd); font-weight:600}
+.steps li.fail .si{background:rgba(255,92,92,.16); border-color:var(--rd); color:var(--rd)}
+
+
+.logbox{
+  font-family:var(--mono); font-size:11.5px; line-height:1.55;
+  background:var(--logbg); border:1px solid var(--line); border-radius:8px;
+  padding:8px 10px; height:200px; overflow:auto; white-space:pre-wrap; word-break:break-all;
+}
+.logbox .tx{color:var(--bl)} .logbox .rx{color:var(--gr)} .logbox .er{color:var(--rd)} .logbox .no{color:var(--fg3)}
+
+
+.toast{
+  position:fixed; left:50%; bottom:26px; z-index:99;
+  transform:translate(-50%,16px) scale(.97);
+  display:flex; align-items:flex-start; gap:11px;
+  min-width:290px; max-width:min(780px,93vw);
+  padding:14px 20px 17px 16px;
+  background:var(--toastbg); color:var(--fg);
+  border:1px solid var(--line); border-left:4px solid var(--bl);
+  border-radius:12px;
+  font-size:14.5px; font-weight:600; line-height:1.45; letter-spacing:.1px;
+  white-space:pre-wrap; word-break:break-word;
+  box-shadow:0 20px 52px rgba(0,0,0,.55);
+  opacity:0; pointer-events:none; overflow:hidden;
+  transition:opacity .16s ease, transform .24s cubic-bezier(.2,.9,.3,1.25);
+}
+html[data-theme="light"] .toast{box-shadow:0 18px 44px rgba(15,22,32,.22)}
+.toast.show{opacity:1; transform:translate(-50%,0) scale(1)}
+.toast .ico{
+  flex:0 0 auto; width:20px; height:20px; margin-top:1px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font:800 12px/1 var(--mono); color:#fff; background:var(--bl);
+  box-shadow:0 0 0 3px rgba(91,157,255,.20);
+}
+.toast .bar{position:absolute; left:0; bottom:0; height:3px; width:100%; background:var(--bl);
+            transform-origin:left; opacity:.85}
+.toast.ok{border-left-color:var(--gr)} .toast.ok .ico{background:var(--gr)} .toast.ok .bar{background:var(--gr)}
+.toast.bad{border-left-color:var(--rd)} .toast.bad .ico{background:var(--rd)} .toast.bad .bar{background:var(--rd)}
+html[data-theme="light"] .toast.bad{color:#8f1d15}
+
+.banner{
+  
+  flex:1 1 100%; background:var(--bannerbg); border:1px solid var(--bannerbd); color:var(--bannerfg);
+  border-radius:10px; padding:12px 15px; font-size:13px; line-height:1.6; display:none;
+}
+.banner.show{display:block}
+.banner code{background:rgba(128,128,128,.18); padding:1px 5px; border-radius:4px; font-family:var(--mono)}
+
+</style>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0d1117">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%230e7490'/%3E%3Cpath d='M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4M6 6h12v12H6z' fill='none' stroke='%23fff' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<script>
+/* ★ 能力检测放在 head 里同步执行 —— 在样式表生效前就把 noserial 挂上，
+   主界面一帧都不会闪出来。除了挂类什么都不做。
+   判值不判"属性在不在"：某些环境会把 navigator.serial 挂成 undefined，
+   那时 `'serial' in navigator` 仍是 true，但后面一用就炸。 */
+if(!navigator.serial) document.documentElement.classList.add('noserial');
+/* 主题同理：先定下来，避免首帧闪一下。深色是默认（与 PDTriggerMonitor 一致）。 */
+(function(){
+  var t = null;
+  try { t = localStorage.getItem('weactupd.theme'); } catch(e){}
+  if(t !== 'dark' && t !== 'light'){
+    var ls = (navigator.languages && navigator.languages.length) ? navigator.languages : [navigator.language || ''];
+    t = 'dark';
+    if(window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) t = 'light';
+  }
+  document.documentElement.setAttribute('data-theme', t);
+})();
+</script>
+</head>
+<body>
+
+<div id="fallback" role="alert">
+  <div class="fb-box">
+    <svg class="fb-logo" viewBox="0 0 24 24" width="44" height="44" aria-hidden="true">
+      <rect width="24" height="24" rx="6" fill="#1d4ed8"/>
+      <path d="M13.4 3.6 6.6 13.2h4.3l-1 7.2 6.8-9.6h-4.3z" fill="#fff"/>
+    </svg>
+    <h1 data-i18n="unSupTitle">当前浏览器不支持 Web Serial</h1>
+    <p data-i18n="unSupLead">本工具通过 Web Serial 直连 USB 串口给设备升级固件，只有桌面版 Chromium 内核浏览器支持。</p>
+    <div class="fb-grid">
+      <div class="fb-col ok">
+        <div class="fb-h" data-i18n="unSupYesLbl">可用</div>
+        <ul><li data-i18n="unSupYesList">Chrome 89+ · Edge 89+ · Opera 75+（桌面版）</li></ul>
+      </div>
+      <div class="fb-col no">
+        <div class="fb-h" data-i18n="unSupNoLbl">不可用</div>
+        <ul><li data-i18n="unSupNoList">Firefox · Safari · 全部手机与平板浏览器</li></ul>
+      </div>
+    </div>
+    <p class="fb-note" data-i18n="unSupHttps">另外，Web Serial 要求安全上下文：页面须经 HTTPS、localhost 或 file:// 打开，普通 http:// 不行。</p>
+  </div>
+</div>
+
+<div id="app">
+<header>
+    <svg class="logo" viewBox="0 0 24 24" aria-hidden="true">
+    <rect width="24" height="24" rx="6" fill="#0e7490"/>
+    <path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4M6 6h12v12H6z" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+  <h1>WeAct Studio <span data-i18n="subTitle">固件升级</span></h1>
+  <div class="spacer"></div>
+
+    <a class="iconbtn" id="btnBack" href="/" data-i18n-title="btnBack" title="返回工具集" aria-label="返回工具集">
+    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M19 12H5M11 18l-6-6 6-6"/>
+    </svg>
+  </a>
+  <span class="lbl"><span data-i18n="langLabel">语言</span>
+    <select id="langSel" style="padding:4px 7px" title="Language"></select>
+  </span>
+  <span class="lbl"><span data-i18n="themeLabel">深浅色</span>
+    <select id="themeSel" style="padding:4px 7px"></select>
+  </span>
+    <button id="btnInstall" class="mini ghost" data-i18n="btnInstall" hidden>安装到桌面</button>
+
+  <div class="status" id="statusBox"><span class="dot" id="dot"></span><span id="stTxt">未连接</span></div>
+  <button id="btnConn" class="primary" data-i18n="btnConnect">连接设备</button>
+</header>
+
+<main>
+  <div class="banner" id="banner"></div>
+
+    <section class="card c-dev">
+    <h2><span data-i18n="devTitle">设备信息</span><span class="tag" id="devTag"></span></h2>
+    <div class="kv">
+      <div class="k" data-i18n="devModel">型号</div><div class="v" id="dvModel">--</div>
+      <div class="k" data-i18n="devSn">序列号</div><div class="v" id="dvSn">--</div>
+      <div class="k" data-i18n="devVer">当前固件</div><div class="v" id="dvVer">--</div>
+      <div class="k" data-i18n="devMatch">固件型号</div><div class="v" id="dvMatch">--</div>
+      <div class="k" data-i18n="devUsb">USB 标识</div><div class="v" id="dvUsb">--</div>
+    </div>
+    <div class="hint" id="devHint" data-i18n="devHint"></div>
+  </section>
+
+    <section class="card c-cat">
+    <h2><span data-i18n="catTitle">固件目录</span><span class="tag" id="catTag"></span></h2>
+    <div class="kv">
+      <div class="k" data-i18n="catSource">来源</div><div class="v" id="catSrc">--</div>
+      <div class="k" data-i18n="catUpdated">清单更新</div><div class="v" id="catUpd">--</div>
+      <div class="k" data-i18n="catCount">收录</div><div class="v" id="catCnt">--</div>
+    </div>
+        <div class="catlist" id="catList"></div>
+    <div class="btns mt-a">
+      <button class="mini" id="btnRefresh" data-i18n="btnRefresh">刷新清单</button>
+      <button class="mini" id="btnLocal" data-i18n="btnLocal">本地选取固件…</button>
+      <button class="mini ghost" id="btnLocalClear" data-i18n="btnLocalClear" hidden>清除本地固件</button>
+      <input type="file" id="fileLocal" accept=".fpk" hidden>
+    </div>
+  </section>
+
+    <section class="card c-up" id="cardUp">
+    <h2><span data-i18n="upTitle">升级检查</span><span class="tag" id="upTag"></span></h2>
+    <div id="upBody"></div>
+    <div class="btns" style="margin-top:10px">
+      <button id="btnCheck" class="mini" disabled data-i18n="btnCheck">检查更新</button>
+            <button id="btnReflash" class="mini" hidden data-i18n="btnReflash">重新刷入</button>
+    </div>
+    <div class="hint" id="upHint" data-i18n="upHint"></div>
+  </section>
+
+    <section class="card c-log">
+    <h2><span data-i18n="logTitle">通信日志</span>
+      <label class="chk" style="margin-left:auto"><input type="checkbox" id="logChk" checked>
+        <span data-i18n="logShow">显示</span></label>
+      <button class="mini ghost" id="btnClearLog" data-i18n="btnClearLog">清空</button>
+    </h2>
+    <div class="logbox" id="log"></div>
+  </section>
+</main>
+
+<div class="ovl" id="ovl" hidden>
+  <div class="ovl-bg" id="ovlBg"></div>
+  <section class="card ovl-panel" id="cardGo" role="dialog" aria-modal="true"
+           aria-labelledby="goTitle" tabindex="-1">
+    <h2><span id="goTitle" data-i18n="upConfirmTitle">确认升级</span><span class="tag" id="goTag"></span></h2>
+
+    <div id="confirmBox">
+      <div class="cfsum" id="cfSummary"></div>
+      <label class="chk ack"><input type="checkbox" id="chkAck">
+        <span data-i18n="upChkTip">我已知晓升级风险，并确认这台设备可以刷入上述固件</span></label>
+      <div class="btns" style="margin-top:10px">
+        <button id="btnUpConfirm" class="primary" disabled data-i18n="upConfirmGo">开始升级</button>
+        <button id="btnUpCancel" data-i18n="btnCancel">取消</button>
+      </div>
+      <div class="hint warn" id="goWarn" data-i18n-html="upConfirmHint"></div>
+    </div>
+
+    <div id="progBox" hidden>
+      <div class="prog"><div class="progfill" id="progFill"></div></div>
+      <div class="progmeta"><span class="mono" id="progPct">0%</span><span class="mono" id="progInfo"></span></div>
+      <ol class="steps" id="stepList"></ol>
+      <div class="hint" id="stepHint" data-i18n="stepHint"></div>
+    </div>
+  </section>
+</div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite">
+  <span class="ico" id="toastIco"></span>
+  <span id="toastMsg"></span>
+  <span class="bar" id="toastBar"></span>
+</div>
+
+<script>
+(function(){
+  var F = { zh:'i18n-zh.de8be2aa.js', en:'i18n-en.8926103b.js', ru:'i18n-ru.b21e715b.js', de:'i18n-de.5d9c523d.js' };
+  var l = null;
+  try { l = localStorage.getItem('weactupd.lang'); } catch(e){}
+  if(!F[l]){
+    var list = (navigator.languages && navigator.languages.length) ? navigator.languages : [navigator.language || ''];
+    for(var i = 0; i < list.length; i++){
+      var b = String(list[i] || '').toLowerCase().split('-')[0];
+      if(F[b]){ l = b; break; }
+    }
+  }
+  if(!F[l]) l = 'zh';
+  document.write('<script src="' + F[l] + '"><\/script>');
+
+  if(navigator.serial){
+    document.write('<script src="app.60320df0.js"><\/script>');
+    return;
+  }
+  /* 兜底卡文案。必须**另起一段脚本**写下去：同一个内联脚本里 document.write 写进去的
+     外链脚本，要等当前脚本返回之后才被解析执行，紧接着读 I18N 会 ReferenceError。
+     拆成 sibling script 后解析顺序才是「先字典、后这段填充」，I18N 真在作用域里。 */
+  document.write('<script>(function(){var l=' + JSON.stringify(l) +
+    ';var els=document.querySelectorAll("#fallback [data-i18n]");' +
+    'for(var j=0;j<els.length;j++){var k=els[j].getAttribute("data-i18n");' +
+    'if(I18N[l]&&I18N[l][k])els[j].textContent=I18N[l][k];}})();<\/script>');
+})();
+</script>
+</body>
+</html>
